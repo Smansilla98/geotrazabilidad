@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Tipos, lint, pruebas y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # Unitarias (shared, web) + integración de la API contra PostGIS real (Testcontainers usa el Docker del runner).
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: E2E web + simulación de dispositivo
+    runs-on: ubuntu-latest
+    needs: checks
+    timeout-minutes: 25
+    services:
+      db:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: geo
+          POSTGRES_PASSWORD: geo
+          POSTGRES_DB: geo
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U geo -d geo" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://geo:geo@localhost:5432/geo
+      DATABASE_SSL: disable
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+      ROUTING_PROVIDER: none
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node apps/api/dist/db/migrate-cli.js
+      - name: Iniciar API
+        run: |
+          node apps/api/dist/main.js > api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3000/health/ready && break; sleep 1; done
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npx playwright test
+        working-directory: apps/web
+      - name: Simulación de dispositivo de punta a punta
+        run: API_URL=http://localhost:3000 node scripts/simulate-device.mjs
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            api.log
+            apps/web/test-results/
+
+  mobile:
+    name: App móvil (tipos, prueba y bundle)
+    runs-on: ubuntu-latest
+    needs: checks
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      # La app consume packages/shared compilado (dependencia file:).
+      - run: npm ci && npm run build -w @geo/shared
+      - run: npm ci
+        working-directory: apps/mobile
+      - run: npx tsc --noEmit
+        working-directory: apps/mobile
+      - run: npm test
+        working-directory: apps/mobile
+      - run: npx expo export --platform android --output-dir .expo-export-check
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_URL: https://api.example.invalid

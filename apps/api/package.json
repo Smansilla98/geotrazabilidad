@@ -1,0 +1,46 @@
+{
+  "name": "@geo/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "dev": "node --watch --env-file-if-exists=../../.env --import ./scripts/register-swc.mjs src/main.ts",
+    "migrate": "node --env-file-if-exists=../../.env dist/db/migrate-cli.js",
+    "demo:seed": "node --env-file-if-exists=../../.env dist/demo/seed-cli.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
+    "@geo/shared": "0.1.0",
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
+    "@nestjs/platform-express": "^12.3.2",
+    "@nestjs/throttler": "^6.7.1",
+    "argon2": "^0.45.1",
+    "jose": "^6.2.13",
+    "nodemailer": "^10.2.1",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "swagger-ui-dist": "^5.34.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.20",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.1",
+    "testcontainers": "^12.2.1",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}

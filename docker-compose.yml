@@ -1,0 +1,20 @@
+# Entorno local: PostGIS + Mailpit (SMTP de prueba). La API y la web corren con npm.
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: geo
+      POSTGRES_PASSWORD: geo_dev_password
+      POSTGRES_DB: geo
+    ports: ["5433:5432"]
+    volumes: [geo-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geo -d geo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+volumes:
+  geo-db:
