@@ -46,3 +46,22 @@ npx expo start --dev-client             # servidor de desarrollo para el build i
 - En builds que no son de producción, la URL de la API se puede cambiar desde Más → Sincronización.
 - Verificaciones sin dispositivo: `npx tsc --noEmit`, `npm test` y `npm run bundle:check`.
 - Pruebas en dispositivo físico: [MOBILE_DEVICE_TESTING.md](MOBILE_DEVICE_TESTING.md).
+
+### Builds en la nube con EAS (expo.dev)
+Proyecto: [@smansilla/geotrazabilidad](https://expo.dev/accounts/smansilla/projects/geotrazabilidad). El `projectId` está en `app.config.ts`; los perfiles, en `eas.json`.
+
+| Perfil | Para qué | Salida |
+|---|---|---|
+| `development` | Development build (incluye `expo-dev-client`) para desarrollar con `npx expo start --dev-client` | APK de distribución interna |
+| `preview` | Probar la app sin servidor de desarrollo, apuntando a Railway | APK de distribución interna |
+| `production` | Google Play / App Store | AAB / IPA |
+
+```bash
+cd apps/mobile
+# La URL de la API se toma de las variables de entorno de EAS (no es secreta):
+npx eas-cli env:create --environment preview --name EXPO_PUBLIC_API_URL --value https://<dominio-api> --visibility plaintext
+npx eas-cli env:create --environment production --name EXPO_PUBLIC_API_URL --value https://<dominio-api> --visibility plaintext
+npm run build:dev        # o build:preview
+```
+- El hook `eas-build-post-install` compila `packages/shared` en el servidor de EAS, porque `dist/` no se versiona.
+- En `development` no hace falta cargar `EXPO_PUBLIC_API_URL` en EAS: el servidor de desarrollo la toma de `apps/mobile/.env` o de la variable al correr `EXPO_PUBLIC_API_URL=http://<IP-de-tu-PC>:3000 npx expo start --dev-client`.

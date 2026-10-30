@@ -1,6 +1,6 @@
 # Estado del proyecto: funcionalidades, limitaciones y plan
 
-Actualizado: 2026-10-27.
+Actualizado: 2026-10-30.
 
 **Leyenda**
 - ✅ Implementado **y verificado**, con la evidencia que se indica.
@@ -66,7 +66,8 @@ Abreviaturas de evidencia:
 | Funcionalidad | Estado | Evidencia |
 |---|---|---|
 | docker-compose local, `.env.example` | ✅ | Uso continuo durante el desarrollo |
-| CI de GitHub Actions (checks, e2e, simulación, móvil) | 🟡 | Los pasos se ejecutaron localmente; el workflow no corrió en GitHub (no hay remoto) |
+| CI de GitHub Actions (checks, e2e, simulación, móvil) | ✅ | Run 40696091025 en GitHub: los tres jobs en verde |
+| Proyecto en expo.dev y perfiles EAS (`development`, `preview`, `production`) | ✅ preparado | `eas project:info`, `eas config` y bundle en una copia limpia con el hook de EAS; todavía no se lanzó un build en EAS |
 | Railway IaC y comandos de build/arranque | ✅ preparado | Compila con los tipos oficiales; builds en limpio con `NODE_ENV=production`; PostGIS con `lost+found` |
 | Despliegue en Railway | ⏳ | Sin cuenta ni CLI (ver RAILWAY_DEPLOYMENT.md) |
 
@@ -95,7 +96,7 @@ Abreviaturas de evidencia:
 ## Plan para lo restante (por prioridad)
 1. **Pruebas en dispositivos físicos** (lista de 15 casos) y corrección de lo que surja. *Requiere un Android físico y, para iOS, Mac + cuenta Apple.*
 2. **Desplegar en Railway** siguiendo la guía y correr `simulate-device.mjs` contra producción. Validar SSE a través del proxy y la persistencia tras redeploy. *Requiere cuenta Railway.*
-3. **Push al remoto de GitHub** para que corra la CI real. *Requiere el repo.*
+3. **Primer build en EAS** (`npm run build:dev`) e instalación en un Android físico.
 4. **Proveedor de rutas de producción:** OSRM propio para la región (servicio en Railway con volumen) o GraphHopper con clave, más map matching (`/match`).
 5. **E2E de la UI de geocercas, dispositivos y configuración**, y verificación responsive en tablet y móvil.
 6. Endpoint de eliminación de cuenta e invitaciones por email.

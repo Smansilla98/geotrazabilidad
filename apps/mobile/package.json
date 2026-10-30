@@ -9,7 +9,10 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "bundle:check": "expo export --platform android --output-dir .expo-export-check",
-    "test": "node --test --experimental-strip-types test/*.test.ts"
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "eas-build-post-install": "cd ../.. && npm ci --workspace @geo/shared --include-workspace-root && npm run build -w @geo/shared",
+    "build:dev": "eas build --profile development --platform android",
+    "build:preview": "eas build --profile preview --platform android"
   },
   "dependencies": {
     "@geo/shared": "file:../../packages/shared",

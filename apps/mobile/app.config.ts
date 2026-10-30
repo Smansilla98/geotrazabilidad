@@ -8,12 +8,13 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'Geotrazabilidad',
   slug: 'geotrazabilidad',
+  owner: 'smansilla',
   scheme: 'geotrazabilidad',
   version: '1.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   ios: {
-    bundleIdentifier: 'com.example.geotrazabilidad',
+    bundleIdentifier: 'com.smansilla.geotrazabilidad',
     supportsTablet: true,
     infoPlist: {
       NSLocationWhenInUseUsageDescription: 'Usamos tu ubicación para registrar el recorrido mientras el seguimiento está activo.',
@@ -22,7 +23,7 @@ const config: ExpoConfig = {
     },
   },
   android: {
-    package: 'com.example.geotrazabilidad',
+    package: 'com.smansilla.geotrazabilidad',
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION'],
     // Permisos de la plantilla que esta app no usa: se bloquean (privacidad y revisión de Google Play).
     blockedPermissions: ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'],
@@ -47,6 +48,8 @@ const config: ExpoConfig = {
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
     appEnv: process.env.EXPO_PUBLIC_APP_ENV ?? 'development',
+    // Proyecto en expo.dev: https://expo.dev/accounts/smansilla/projects/geotrazabilidad
+    eas: { projectId: '10d5454d-85cb-4fed-9320-91737f3a3491' },
   },
 };
 
