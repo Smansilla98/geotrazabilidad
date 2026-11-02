@@ -139,7 +139,7 @@ describe('ingesta de posiciones', () => {
     const u = await registerUser(ctx);
     const d = await registerDevice(ctx, u.token);
     const cfg = await ctx.http().get(`/v1/devices/${d.deviceId}/config`).set('Authorization', `Bearer ${d.deviceToken}`).expect(200);
-    expect(Object.keys(cfg.body.modes).sort()).toEqual(['battery_saver', 'intensive', 'normal', 'trip']);
+    expect(Object.keys(cfg.body.modes).sort()).toEqual(['battery_saver', 'fleet', 'intensive', 'normal', 'trip']);
     const hb = await ctx
       .http()
       .post(`/v1/devices/${d.deviceId}/heartbeat`)

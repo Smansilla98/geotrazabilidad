@@ -5,6 +5,7 @@ import { getDevice } from '../src/credentials';
 import { Card, ErrorText, fmtDT, Muted, Screen, s, useLoad } from '../src/ui';
 
 const CONN: Record<string, string> = { online: 'En línea', recent: 'Reciente', stale: 'Inactivo', offline: 'Desconectado', never: 'Sin contacto' };
+const POSITION: Record<string, string> = { current: 'posición actual', no_signal: 'sin señal', no_permission: 'sin permiso', no_data: 'sin datos' };
 
 export default function DevicesScreen() {
   const q = useLoad(async () => ({ list: await userApi<DeviceSummary[]>('/v1/devices'), mine: (await getDevice())?.deviceId }));
@@ -15,7 +16,7 @@ export default function DevicesScreen() {
         {q.data?.list.filter((d) => !d.isDemo).map((d) => (
           <View key={d.id} style={s.item}>
             <Text style={{ fontWeight: '600' }}>{d.name}{d.id === q.data?.mine ? ' (este teléfono)' : ''}</Text>
-            <Muted>{d.status === 'revoked' ? 'Revocado' : CONN[d.connectionState]} · último contacto {fmtDT(d.lastContactAt)} · app {d.appVersion ?? '—'}</Muted>
+            <Muted>{d.status === 'revoked' ? 'Revocado' : `${CONN[d.connectionState]} · ${POSITION[d.positionState]}`} · último contacto {fmtDT(d.lastContactAt)} · app {d.appVersion ?? '—'}</Muted>
           </View>
         ))}
       </Card>

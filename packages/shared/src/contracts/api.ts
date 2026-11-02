@@ -5,10 +5,12 @@ import {
   EventType,
   IsoDateTime,
   Latitude,
+  LocationPermission,
   LocationSource,
   LonLatSchema,
   Longitude,
   OrgRole,
+  PositionState,
   TrackingMode,
   TripStatus,
   Uuid,
@@ -81,6 +83,9 @@ export const DeviceSummary = z.object({
     .nullable(),
   sync: z.object({ clientPendingCount: z.number().nullable(), clientReportedAt: IsoDateTime.nullable(), lastError: z.string().nullable() }),
   consent: z.object({ active: z.boolean(), shareWithOrg: z.boolean(), version: z.string().nullable() }),
+  /** Último permiso informado por el dispositivo. */
+  permission: LocationPermission.nullable(),
+  positionState: PositionState,
   canManage: z.boolean(),
 });
 export type DeviceSummary = z.infer<typeof DeviceSummary>;
@@ -88,7 +93,7 @@ export const UpdateDeviceRequest = z.object({ name: z.string().trim().min(1).max
 
 export const HeartbeatRequest = z.object({
   pendingCount: z.number().int().min(0),
-  permission: z.enum(['always', 'when_in_use', 'denied', 'unknown']),
+  permission: LocationPermission,
   trackingActive: z.boolean(),
   batteryLevel: z.number().min(0).max(1).nullable().optional(),
   appVersion: z.string().max(40).optional(),
@@ -135,13 +140,25 @@ export const IngestBatchRequest = z.object({
     appVersion: z.string().max(40).optional(),
     pendingCount: z.number().int().min(0).optional(),
     batteryLevel: z.number().min(0).max(1).nullable().optional(),
-    permission: z.enum(['always', 'when_in_use', 'denied', 'unknown']).optional(),
+    permission: LocationPermission.optional(),
     configVersion: z.number().int().optional(),
+    /** Sesión que el dispositivo está registrando: la respuesta dice si debe seguir. */
+    activeSessionId: Uuid.nullable().optional(),
   }),
   sessions: z.array(IngestSession).max(50),
   points: z.array(IngestPoint).max(MAX_POINTS_PER_BATCH),
 });
 export type IngestBatchRequest = z.infer<typeof IngestBatchRequest>;
+
+export const TrackingStopReason = z.enum(['trip_completed', 'trip_cancelled', 'trip_max_duration']);
+export type TrackingStopReason = z.infer<typeof TrackingStopReason>;
+export const TrackingDirective = z.object({
+  sessionId: Uuid,
+  tripId: Uuid,
+  state: z.enum(['active', 'stop']),
+  reason: TrackingStopReason.nullable(),
+});
+export type TrackingDirective = z.infer<typeof TrackingDirective>;
 
 export const RejectCode = z.enum([
   'LAT_OUT_OF_RANGE',
@@ -150,6 +167,7 @@ export const RejectCode = z.enum([
   'SESSION_OF_OTHER_DEVICE',
   'TOO_FAR_IN_FUTURE',
   'BEFORE_SESSION_START',
+  'OUTSIDE_TRIP_WINDOW',
   'INVALID_VALUE',
 ]);
 export type RejectCode = z.infer<typeof RejectCode>;
@@ -161,6 +179,8 @@ export const IngestBatchResponse = z.object({
   duplicates: z.array(Uuid),
   rejected: z.array(z.object({ id: Uuid, code: RejectCode })),
   config: z.object({ version: z.number(), changed: z.boolean() }),
+  /** Indicación por sesión asociada a un viaje: seguir registrando o detenerse (y por qué). */
+  tracking: z.array(TrackingDirective).optional(),
 });
 export type IngestBatchResponse = z.infer<typeof IngestBatchResponse>;
 
@@ -316,6 +336,10 @@ export const TripInput = z.object({
   destination: LonLatSchema,
   destinationLabel: z.string().max(200).nullable().optional(),
   arrivalRadiusM: z.number().int().min(10).max(5000).default(100),
+  /** Corte por duración: pasado este tiempo desde el inicio, el registro del viaje se detiene. */
+  maxDurationS: z.number().int().min(600).max(7 * 86_400).default(86_400),
+  /** Margen después de la llegada antes de detener el registro. */
+  stopGraceS: z.number().int().min(0).max(4 * 3600).default(600),
   plannedStartAt: IsoDateTime.nullable().optional(),
   plannedArrivalAt: IsoDateTime.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
@@ -324,6 +348,8 @@ export const TripUpdate = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   deviceId: Uuid.nullable().optional(),
   status: z.enum(['planned', 'cancelled', 'interrupted', 'completed']).optional(),
+  maxDurationS: z.number().int().min(600).max(7 * 86_400).optional(),
+  stopGraceS: z.number().int().min(0).max(4 * 3600).optional(),
   plannedStartAt: IsoDateTime.nullable().optional(),
   plannedArrivalAt: IsoDateTime.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
@@ -354,9 +380,13 @@ export const TripDto = z.object({
   destination: LonLatSchema,
   destinationLabel: z.string().nullable(),
   arrivalRadiusM: z.number(),
+  maxDurationS: z.number(),
+  stopGraceS: z.number(),
   plannedStartAt: IsoDateTime.nullable(),
   plannedArrivalAt: IsoDateTime.nullable(),
   status: TripStatus,
+  /** Fin de la ventana de registro del viaje; los puntos posteriores se rechazan. */
+  windowEndsAt: IsoDateTime.nullable(),
   actualStartAt: IsoDateTime.nullable(),
   actualEndAt: IsoDateTime.nullable(),
   notes: z.string().nullable(),

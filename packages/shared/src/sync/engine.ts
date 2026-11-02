@@ -1,4 +1,4 @@
-import type { IngestBatchRequest, IngestBatchResponse } from '../contracts/api.js';
+import type { IngestBatchRequest, IngestBatchResponse, TrackingDirective } from '../contracts/api.js';
 import type { QueueStore } from './queue.js';
 
 export class SyncHttpError extends Error {
@@ -28,6 +28,8 @@ export interface SyncOptions {
   random?: () => number;
   uuid: () => string;
   clientInfo?: () => Promise<Partial<IngestBatchRequest['client']>>;
+  /** Indicaciones del servidor para las sesiones de viaje (p. ej. detenerse al llegar). */
+  onTracking?: (directives: TrackingDirective[]) => void | Promise<void>;
   baseDelayMs?: number;
   maxDelayMs?: number;
 }
@@ -92,6 +94,7 @@ export class SyncEngine {
     const confirmed = [...res.accepted, ...res.duplicates];
     await this.store.markAcked(confirmed, batch.sessionVersions, this.now());
     if (res.rejected.length) await this.store.markRejected(res.rejected);
+    if (res.tracking?.length) await this.opts.onTracking?.(res.tracking);
     const after = await this.store.stats();
     return {
       kind: 'sent',

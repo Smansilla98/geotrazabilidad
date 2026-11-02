@@ -157,6 +157,15 @@ async function main() {
   const cmp = await call(`/v1/trips/${trip.id}/comparison`, { token: viewer.accessToken });
   check('la comparación distingue estimado de observado', cmp.planned?.durationKind === 'basic_estimate' && cmp.arrival.reached, `planificado ${Math.round(cmp.planned.distanceM)} m / observado ${cmp.observed.distanceM} m`);
 
+  // 7b. Corte del viaje: pasado el margen tras la llegada, el servidor indica detenerse y no guarda lo posterior.
+  for (let i = 0; i < 20 && (await call(`/v1/trips/${trip.id}`, { token: holder.accessToken })).status !== 'completed'; i++) await sleep(250);
+  const directives = [];
+  const engine2 = new SyncEngine(store, transport, { uuid: randomUUID, appVersion: 'sim-1.0', clientInfo: async () => ({ activeSessionId: sessionId }), onTracking: (d) => void directives.push(...d) });
+  await store.enqueuePoint({ id: randomUUID(), sessionId, capturedAt: Date.now(), lat: destination.lat, lon: destination.lon, accuracy: 6, altitude: null, altitudeAccuracy: null, speed: 0, heading: null, source: 'fused', mocked: false, battery: 0.8 });
+  await engine2.drain();
+  check('tras la llegada y el margen, el servidor indica detener el registro', directives.some((d) => d.sessionId === sessionId && d.state === 'stop' && d.reason === 'trip_completed'), JSON.stringify(directives));
+  check('lo capturado después del corte del viaje no se guarda', (await store.stats()).rejected === 1);
+
   // 8. Latencia del aviso en tiempo real.
   check('aviso en tiempo real recibido por SSE', firstNotice !== null, firstNotice ? `primer aviso tras ${Math.max(0, firstNotice - sendStarted)} ms del envío final (o antes, por envíos previos)` : 'sin aviso');
 

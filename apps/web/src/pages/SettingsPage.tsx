@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OrgRole, TrackingConfigResponse } from '@geo/shared';
+import type { OrgRole, TrackingConfigResponse, TrackingMode } from '@geo/shared';
 import { api, download } from '../lib/api';
+import { MODE_LABEL } from '../lib/format';
 import { ErrorBox, usePrimaryOrg } from '../App';
 
 const ROLE_LABEL: Record<OrgRole, string> = { owner: 'Owner', admin: 'Administrador', viewer: 'Lector' };
@@ -130,7 +131,7 @@ export function SettingsPage() {
                 <tbody>
                   {Object.entries(cfg.data.modes).map(([mode, p]) => (
                     <tr key={mode}>
-                      <td>{{ battery_saver: 'Ahorro', normal: 'Normal', trip: 'Viaje', intensive: 'Intensivo' }[mode]}</td>
+                      <td>{MODE_LABEL[mode as TrackingMode]}</td>
                       <td>{p.accuracy}</td>
                       <td>{p.minDistanceM} m</td>
                       <td>{p.maxIntervalMovingS} s</td>

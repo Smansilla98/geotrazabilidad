@@ -125,7 +125,7 @@ CREATE TABLE device_consents (                             -- historial, no se s
 );
 CREATE UNIQUE INDEX device_consents_one_active ON device_consents(device_id) WHERE revoked_at IS NULL;
 
-CREATE TYPE tracking_mode AS ENUM ('battery_saver','normal','trip','intensive');
+CREATE TYPE tracking_mode AS ENUM ('battery_saver','normal','trip','intensive','fleet');  -- 'fleet' en 0004
 CREATE TABLE tracking_configs (                            -- estrategia servida al móvil
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id     uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -148,6 +148,8 @@ CREATE TABLE trips (
   destination         geometry(Point,4326) NOT NULL,
   destination_label   text,
   arrival_radius_m    int NOT NULL DEFAULT 100 CHECK (arrival_radius_m BETWEEN 10 AND 5000),
+  max_duration_s      int NOT NULL DEFAULT 86400,              -- 0004: corte por duración desde el inicio
+  stop_grace_s        int NOT NULL DEFAULT 600,                -- 0004: margen tras la llegada antes de cortar
   planned_start_at    timestamptz,
   planned_arrival_at  timestamptz,
   status              trip_status NOT NULL DEFAULT 'planned',

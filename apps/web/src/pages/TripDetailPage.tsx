@@ -218,6 +218,10 @@ export function TripDetailPage() {
             <dd>{fmtDateTime(t.plannedStartAt)}</dd>
             <dt>Llegada estimada</dt>
             <dd>{fmtDateTime(t.plannedArrivalAt)}</dd>
+            <dt>Corte del registro</dt>
+            <dd title="Lo que el teléfono capture después de este momento no se guarda en el viaje">
+              {t.windowEndsAt ? fmtDateTime(t.windowEndsAt) : 'Todavía no empezó'} · máximo {fmtDuration(t.maxDurationS)}, margen tras la llegada {fmtDuration(t.stopGraceS)}
+            </dd>
             <dt>Observaciones</dt>
             <dd>{t.notes ?? '—'}</dd>
           </dl>

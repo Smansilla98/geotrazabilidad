@@ -1,4 +1,4 @@
-import type { ConnectionState, EventConfidence, EventType } from '@geo/shared';
+import type { ConnectionState, EventConfidence, EventType, PositionState, TrackingMode } from '@geo/shared';
 
 /** Las fechas se guardan en UTC; se muestran en la zona horaria del navegador. */
 export const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -79,6 +79,27 @@ export const CONNECTION_LABEL: Record<ConnectionState, { label: string; help: st
   stale: { label: 'Inactivo', help: 'Último contacto hace menos de 24 horas' },
   offline: { label: 'Desconectado', help: 'Sin contacto hace más de 24 horas, o revocado' },
   never: { label: 'Sin contacto', help: 'Nunca se conectó (o es un dispositivo de demostración)' },
+};
+
+export const POSITION_LABEL: Record<PositionState, { label: string; help: string }> = {
+  current: { label: 'Posición actual', help: 'Llegó una posición en los últimos 30 minutos' },
+  no_signal: { label: 'Sin señal', help: 'La última posición recibida tiene más de 30 minutos' },
+  no_permission: { label: 'Sin permiso', help: 'El teléfono informó que el permiso de ubicación está denegado' },
+  no_data: { label: 'Sin datos', help: 'Todavía no llegó ninguna posición (o es un dispositivo de demostración)' },
+};
+export const POSITION_CLASS: Record<PositionState, ConnectionState> = { current: 'online', no_signal: 'stale', no_permission: 'offline', no_data: 'never' };
+
+export const MODE_LABEL: Record<TrackingMode, string> = { battery_saver: 'Ahorro', normal: 'Normal', trip: 'Viaje', intensive: 'Intensivo', fleet: 'Flota' };
+
+export const END_REASON_LABEL: Record<string, string> = {
+  user: 'Detenido por el usuario',
+  trip_completed: 'Llegada a destino',
+  trip_cancelled: 'Viaje cancelado',
+  trip_max_duration: 'Duración máxima del viaje',
+  interrupted: 'Interrumpido',
+  consent_revoked: 'Consentimiento revocado',
+  device_revoked: 'Dispositivo revocado',
+  permission_revoked: 'Permiso revocado',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

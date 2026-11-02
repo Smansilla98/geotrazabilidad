@@ -8,6 +8,7 @@ import {
   INITIAL_CAPTURE_STATE,
   SyncEngine,
   TrackingConfigResponse,
+  TrackingStopReason,
   type CaptureState,
   type SyncOutcome,
   type TrackingConfigParams,
@@ -42,10 +43,12 @@ export interface TrackingStatus {
   online: boolean | null;
   /** Hay una sesión abierta pero el SO detuvo la captura (app cerrada a la fuerza, reinicio). */
   interrupted: boolean;
+  /** El servidor indicó detener el registro del viaje (llegada, cancelación o duración máxima). */
+  stoppedByServer: TrackingStopReason | null;
 }
 let status: TrackingStatus = {
   active: false, sessionId: null, mode: 'normal', permission: 'unknown', pending: 0, rejected: 0,
-  lastSyncAt: null, lastSync: null, lastFix: null, online: null, interrupted: false,
+  lastSyncAt: null, lastSync: null, lastFix: null, online: null, interrupted: false, stoppedByServer: null,
 };
 const subs = new Set<() => void>();
 export const getStatus = () => status;
@@ -133,6 +136,8 @@ export async function handleLocations(locations: Location.LocationObject[]) {
 // ── Sincronización ──
 let engine: SyncEngine | null = null;
 let syncing: Promise<SyncOutcome> | null = null;
+/** Indicación de detener la sesión actual recibida durante la sincronización en curso. */
+let pendingServerStop: TrackingStopReason | null = null;
 
 async function getEngine() {
   engine ??= new SyncEngine(await getStore(), { sendBatch }, {
@@ -141,7 +146,13 @@ async function getEngine() {
     batchSize: 200,
     clientInfo: async () => {
       const b = await Battery.getBatteryLevelAsync().catch(() => -1);
-      return { batteryLevel: b >= 0 ? b : null, permission: status.permission };
+      const activeSessionId = (await (await getStore()).getMeta(META.session)) || null;
+      return { batteryLevel: b >= 0 ? b : null, permission: status.permission, activeSessionId };
+    },
+    onTracking: async (directives) => {
+      const current = await (await getStore()).getMeta(META.session);
+      const stop = directives.find((d) => d.sessionId === current && d.state === 'stop');
+      if (stop) pendingServerStop = stop.reason ?? 'trip_completed';
     },
   });
   return engine;
@@ -164,7 +175,13 @@ export function syncNow(): Promise<SyncOutcome> {
     patch({ lastSync: out, lastSyncAt: out.kind === 'sent' || out.kind === 'idle' ? Date.now() : status.lastSyncAt });
     await refreshStatus();
     return out;
-  })().finally(() => (syncing = null));
+  })().finally(() => {
+    syncing = null;
+    // Se detiene después de terminar la sincronización: así el cierre de la sesión sale en un lote nuevo.
+    const reason = pendingServerStop;
+    pendingServerStop = null;
+    if (reason) void stopTracking(reason);
+  });
   return syncing;
 }
 
@@ -232,16 +249,17 @@ export async function startTracking(mode: TrackingMode, tripId: string | null = 
       killServiceOnDestroy: false,
     },
   });
-  patch({ active: true, sessionId, mode, interrupted: false });
+  patch({ active: true, sessionId, mode, interrupted: false, stoppedByServer: null });
 }
 
-export async function stopTracking(reason = 'user') {
+export async function stopTracking(reason: string = 'user') {
   const store = await getStore();
   if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false)) await Location.stopLocationUpdatesAsync(LOCATION_TASK);
   const sessionId = await store.getMeta(META.session);
   if (sessionId) await store.endSession(sessionId, Date.now(), reason);
   await store.setMeta(META.session, '');
-  patch({ active: false, sessionId: null, interrupted: false });
+  const byServer = TrackingStopReason.safeParse(reason);
+  patch({ active: false, sessionId: null, interrupted: false, stoppedByServer: byServer.success ? byServer.data : null });
   void syncNow();
 }
 

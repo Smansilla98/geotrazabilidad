@@ -8,6 +8,7 @@ export * from './rules/segments.js';
 export * from './rules/corridor.js';
 export * from './rules/engine.js';
 export * from './rules/comparison.js';
+export * from './rules/trip-window.js';
 export * from './capture/strategy.js';
 export * from './sync/queue.js';
 export * from './sync/engine.js';

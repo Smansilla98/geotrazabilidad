@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { compareTrip, DEFAULT_RULE_PARAMS, RouteRequest, TripInput, TripStatus, TripUpdate, Uuid, type TripDto } from '@geo/shared';
+import { compareTrip, DEFAULT_RULE_PARAMS, RouteRequest, ruleParamsForTiming, TripInput, TripStatus, TripUpdate, tripWindowEnd, Uuid, type TripDto } from '@geo/shared';
 import { AccessService } from '../access/access.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AppError, Auth, clientMeta, parse, userIdOf, type Principal } from '../common/http.js';
@@ -13,6 +13,7 @@ interface Row {
   id: string; org_id: string; device_id: string | null; device_name: string | null; name: string; origin: string; origin_label: string | null;
   destination: string; destination_label: string | null; arrival_radius_m: number; planned_start_at: Date | null; planned_arrival_at: Date | null;
   status: TripDto['status']; actual_start_at: Date | null; actual_end_at: Date | null; notes: string | null; created_at: Date;
+  max_duration_s: number; stop_grace_s: number; observed_start: Date | null;
   r_id: string | null; r_provider: string | null; r_profile: string | null; r_distance: number | null; r_duration: number | null;
   r_kind: 'provider_no_traffic' | 'provider_with_traffic' | 'basic_estimate' | null; r_geom: string | null; r_computed: Date | null; r_meta: Record<string, unknown> | null;
 }
@@ -20,7 +21,8 @@ interface Row {
 const SELECT = `
   SELECT t.id, t.org_id, t.device_id, d.name AS device_name, t.name, ST_AsGeoJSON(t.origin) AS origin, t.origin_label,
          ST_AsGeoJSON(t.destination) AS destination, t.destination_label, t.arrival_radius_m, t.planned_start_at, t.planned_arrival_at,
-         t.status, t.actual_start_at, t.actual_end_at, t.notes, t.created_at,
+         t.status, t.actual_start_at, t.actual_end_at, t.notes, t.created_at, t.max_duration_s, t.stop_grace_s,
+         LEAST(t.actual_start_at, (SELECT min(s.started_at) FROM tracking_sessions s WHERE s.trip_id = t.id)) AS observed_start,
          r.id AS r_id, r.provider AS r_provider, r.profile AS r_profile, r.distance_m AS r_distance, r.duration_s AS r_duration,
          r.duration_kind AS r_kind, ST_AsGeoJSON(r.geom) AS r_geom, r.computed_at AS r_computed, r.provider_meta AS r_meta
     FROM trips t LEFT JOIN devices d ON d.id = t.device_id
@@ -39,11 +41,16 @@ const toDto = (r: Row): TripDto => ({
   destination: pt(r.destination),
   destinationLabel: r.destination_label,
   arrivalRadiusM: r.arrival_radius_m,
+  maxDurationS: r.max_duration_s,
+  stopGraceS: r.stop_grace_s,
   plannedStartAt: r.planned_start_at?.toISOString() ?? null,
   plannedArrivalAt: r.planned_arrival_at?.toISOString() ?? null,
   status: r.status,
   actualStartAt: r.actual_start_at?.toISOString() ?? null,
   actualEndAt: r.actual_end_at?.toISOString() ?? null,
+  windowEndsAt: (([end]) => (end == null ? null : new Date(end).toISOString()))([
+    tripWindowEnd({ status: r.status, startedAt: r.observed_start?.getTime() ?? null, endedAt: r.actual_end_at?.getTime() ?? null, maxDurationS: r.max_duration_s, stopGraceS: r.stop_grace_s }),
+  ]),
   notes: r.notes,
   route: r.r_id
     ? {
@@ -100,11 +107,12 @@ export class TripsController {
     const orgId = await this.access.resolveOrg(uid, t.orgId, ['owner', 'admin']);
     if (t.deviceId) await this.assertDeviceInOrg(uid, t.deviceId, orgId);
     const r = await this.db.one<{ id: string }>(
-      `INSERT INTO trips (org_id, device_id, name, origin, origin_label, destination, destination_label, arrival_radius_m, planned_start_at, planned_arrival_at, notes, created_by)
-       VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14) RETURNING id`,
+      `INSERT INTO trips (org_id, device_id, name, origin, origin_label, destination, destination_label, arrival_radius_m, planned_start_at, planned_arrival_at, notes, created_by,
+          max_duration_s, stop_grace_s)
+       VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
       [
         orgId, t.deviceId ?? null, t.name, t.origin.lon, t.origin.lat, t.originLabel ?? null, t.destination.lon, t.destination.lat, t.destinationLabel ?? null,
-        t.arrivalRadiusM, t.plannedStartAt ?? null, t.plannedArrivalAt ?? null, t.notes ?? null, uid,
+        t.arrivalRadiusM, t.plannedStartAt ?? null, t.plannedArrivalAt ?? null, t.notes ?? null, uid, t.maxDurationS, t.stopGraceS,
       ],
     );
     await this.audit.log({ orgId, actorUserId: uid, action: 'trip.create', targetType: 'trip', targetId: r!.id, ...clientMeta(req) });
@@ -124,11 +132,14 @@ export class TripsController {
          actual_end_at = CASE WHEN $5::trip_status IN ('cancelled','completed','interrupted') THEN COALESCE(actual_end_at, now()) ELSE actual_end_at END,
          planned_start_at = CASE WHEN $6::boolean THEN $7::timestamptz ELSE planned_start_at END,
          planned_arrival_at = CASE WHEN $8::boolean THEN $9::timestamptz ELSE planned_arrival_at END,
-         notes = CASE WHEN $10::boolean THEN $11 ELSE notes END
+         notes = CASE WHEN $10::boolean THEN $11 ELSE notes END,
+         max_duration_s = COALESCE($12::int, max_duration_s),
+         stop_grace_s = COALESCE($13::int, stop_grace_s)
        WHERE id = $1`,
       [
         id, b.name ?? null, b.deviceId !== undefined, b.deviceId ?? null, b.status ?? null,
         b.plannedStartAt !== undefined, b.plannedStartAt ?? null, b.plannedArrivalAt !== undefined, b.plannedArrivalAt ?? null, b.notes !== undefined, b.notes ?? null,
+        b.maxDurationS ?? null, b.stopGraceS ?? null,
       ],
     );
     await this.audit.log({ orgId, actorUserId: uid, action: 'trip.update', targetType: 'trip', targetId: id, metadata: { status: b.status }, ...clientMeta(req) });
@@ -185,6 +196,7 @@ export class TripsController {
       [id],
     );
     const dto = toDto(trip);
+    const timing = allowed[0] ? timingFor(allowed[0].mode, allowed[0].config_snapshot) : undefined;
     return compareTrip({
       tripId: id,
       points,
@@ -199,8 +211,8 @@ export class TripsController {
           }
         : null,
       arrival: arrival ? { confidence: arrival.confidence, at: arrival.occurred_at.getTime() } : null,
-      timing: allowed[0] ? timingFor(allowed[0].mode, allowed[0].config_snapshot) : undefined,
-      params: DEFAULT_RULE_PARAMS,
+      timing,
+      params: timing ? ruleParamsForTiming(timing, DEFAULT_RULE_PARAMS) : DEFAULT_RULE_PARAMS,
     });
   }
 

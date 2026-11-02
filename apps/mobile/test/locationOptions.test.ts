@@ -4,7 +4,7 @@ import { DEFAULT_TRACKING_CONFIG } from '@geo/shared';
 import { nativeOptions } from '../src/locationOptions.ts';
 
 test('cada modo produce opciones nativas coherentes y sin pausa automática', () => {
-  for (const mode of ['battery_saver', 'normal', 'trip', 'intensive'] as const) {
+  for (const mode of ['battery_saver', 'normal', 'trip', 'intensive', 'fleet'] as const) {
     const o = nativeOptions(mode, DEFAULT_TRACKING_CONFIG[mode]);
     assert.equal(o.pausesUpdatesAutomatically, false);
     assert.equal(o.showsBackgroundLocationIndicator, true);
@@ -12,4 +12,6 @@ test('cada modo produce opciones nativas coherentes y sin pausa automática', ()
   }
   assert.ok(nativeOptions('battery_saver', DEFAULT_TRACKING_CONFIG.battery_saver).distanceInterval > nativeOptions('intensive', DEFAULT_TRACKING_CONFIG.intensive).distanceInterval);
   assert.equal(nativeOptions('trip', DEFAULT_TRACKING_CONFIG.trip).activityType, 'automotive');
+  assert.equal(nativeOptions('fleet', DEFAULT_TRACKING_CONFIG.fleet).activityType, 'automotive');
+  assert.equal(nativeOptions('fleet', DEFAULT_TRACKING_CONFIG.fleet).timeInterval, 150_000);
 });

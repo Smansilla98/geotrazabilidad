@@ -1,6 +1,6 @@
 # Estado del proyecto: funcionalidades, limitaciones y plan
 
-Actualizado: 2026-10-30.
+Actualizado: 2026-11-02.
 
 **Leyenda**
 - ✅ Implementado **y verificado**, con la evidencia que se indica.
@@ -29,6 +29,9 @@ Abreviaturas de evidencia:
 | Configuración de captura remota por organización | ✅ | I (dispositivo la obtiene), U (validación) |
 | Motor de reglas: calidad/saltos, huecos, detenciones, movimiento, cambio de rumbo, geocercas con permanencia e histéresis, llegada, desvío por corredor, inicio y fin de viaje | ✅ | U (25 pruebas de reglas), I (procesamiento), SIM |
 | Reprocesamiento ante puntos atrasados (los eventos reemplazados quedan `superseded`) | ✅ | U, I |
+| Ventana de registro del viaje: corte por llegada + margen, cancelación o duración máxima; rechazo `OUTSIDE_TRIP_WINDOW`; indicación `tracking` en la respuesta de la ingesta | ✅ | U `trip-window.test.ts`, I `trip-window.test.ts` (7 pruebas), SIM |
+| Estado de la posición (`current`/`no_signal`/`no_permission`/`no_data`) con el permiso informado por el dispositivo | ✅ | U, I |
+| Modo de captura "flota" (2–3 min, envío cada 5 min) con umbrales de detención ajustados | ✅ | U (configuración y detección de paradas), I (sesión y configuración servida) |
 | Reconstrucción de recorrido con discontinuidades y simplificación que conserva ids | ✅ | U, I `tracks-demo.test.ts` |
 | Comparación planificado/real, avance y ETA básica | ✅ | U, I, E2E, SIM |
 | Rutas OSRM (servidor demo) y línea recta como estimación básica | ✅ | M (ruta real de 2911 m, 185 vértices) |
@@ -48,7 +51,7 @@ Abreviaturas de evidencia:
 | Eventos: lista con filtros, paginación y abrir en el mapa | ✅ | E2E |
 | Viajes: creación en el mapa, cálculo de ruta, comparación | ✅ | E2E (comparación); M (OSRM por API) |
 | Geocercas: crear círculo o polígono, eliminar | 🟡 | El API está verificado (I); la UI de dibujo no tiene E2E |
-| Dispositivos: estados, sesiones, renombrar, revocar, eliminar | 🟡 | El API está verificado (I); las acciones de UI no tienen E2E |
+| Dispositivos: estados de conexión y de posición, sesiones, renombrar, revocar, eliminar | 🟡 | El API está verificado (I); las acciones de UI no tienen E2E |
 | Configuración: retención, miembros, exportar mis datos | 🟡 | El API está verificado (I); la UI no tiene E2E |
 | Responsive para tablet y móvil | 🟡 | CSS implementado; solo se verificó visualmente en escritorio |
 
@@ -60,6 +63,7 @@ Abreviaturas de evidencia:
 | Cola SQLite persistente, sincronización idempotente con backoff, recuperación tras reinicio | ✅ lógica / 🟡 en dispositivo | U con SQLite real, SIM; falta expo-sqlite en un teléfono |
 | Detección de captura interrumpida y reanudación | 🟡 | Implementado; requiere dispositivo |
 | Mapa, historial, detalle, eventos, viajes y progreso, geocercas, dispositivos, sync, perfil (14 pantallas) | 🟡 | Tipos y bundle OK |
+| Detención automática cuando el servidor indica el corte del viaje; modo flota | ✅ lógica / 🟡 en dispositivo | U (motor de sincronización), SIM; falta probarlo en un teléfono |
 | Permisos Android correctos y permisos innecesarios bloqueados | ✅ | `expo prebuild`, inspección del manifiesto |
 
 ### Infraestructura
@@ -90,6 +94,9 @@ Abreviaturas de evidencia:
 - **Exportaciones GPX/KML/GeoJSON** se arman en memoria (tope `EXPORT_MAX_POINTS`). No hay exportaciones asíncronas para volúmenes grandes.
 - **No hay endpoint de eliminación de cuenta** (solo de dispositivo). La exportación de datos propios sí existe.
 - **No hay invitaciones por email:** solo se pueden agregar usuarios ya registrados.
+- **Corte del viaje con demora:** la llegada la detecta el worker después de cada lote. La indicación de detenerse llega en el envío siguiente (hasta 5 min en modo flota); el margen tras la llegada cubre esa demora. Si el teléfono no tiene puntos nuevos para enviar, no consulta: la indicación llega con el próximo punto o latido.
+- **Un solo origen y un destino por viaje:** no hay paradas intermedias ni geocercas automáticas por cada origen.
+- **Velocidad 0:** se conserva como dato real (detenido); solo los valores negativos (-1 de iOS) se guardan como desconocidos.
 - **Geocodificación (búsqueda de direcciones) no implementada:** origen y destino se eligen en el mapa.
 - **La app móvil no cambia de modo nativo en segundo plano** (restricción de Android 12+): la adaptación en segundo plano se hace filtrando en JS; la reconfiguración nativa ocurre al iniciar desde la app.
 

@@ -9,7 +9,8 @@ export const LonLatSchema = z.object({ lon: Longitude, lat: Latitude });
 export const OrgRole = z.enum(['owner', 'admin', 'viewer']);
 export type OrgRole = z.infer<typeof OrgRole>;
 
-export const TrackingMode = z.enum(['battery_saver', 'normal', 'trip', 'intensive']);
+/** 'fleet': captura espaciada (un punto cada 2–3 min, envío cada 5 min) para viajes largos de vehículos. */
+export const TrackingMode = z.enum(['battery_saver', 'normal', 'trip', 'intensive', 'fleet']);
 export type TrackingMode = z.infer<typeof TrackingMode>;
 
 export const LocationSource = z.enum(['gps', 'fused', 'network', 'unknown', 'demo']);
@@ -40,6 +41,38 @@ export type EventConfidence = z.infer<typeof EventConfidence>;
 
 export const ConnectionState = z.enum(['online', 'recent', 'stale', 'offline', 'never']);
 export type ConnectionState = z.infer<typeof ConnectionState>;
+
+/** Permiso de ubicación informado por el dispositivo en cada lote y en cada latido. */
+export const LocationPermission = z.enum(['always', 'when_in_use', 'denied', 'unknown']);
+export type LocationPermission = z.infer<typeof LocationPermission>;
+
+/**
+ * Estado de la posición de un dispositivo, para quien lo sigue en el mapa:
+ * - current: hay una posición reciente;
+ * - no_signal: la última posición recibida es más vieja que el umbral;
+ * - no_permission: el último envío informó el permiso denegado;
+ * - no_data: el dispositivo nunca envió posiciones.
+ */
+export const PositionState = z.enum(['current', 'no_signal', 'no_permission', 'no_data']);
+export type PositionState = z.infer<typeof PositionState>;
+
+/** Umbral de "sin señal" (s). Contempla tres envíos de 5 min más el atraso de Doze en Android. */
+export const NO_SIGNAL_AFTER_S = 30 * 60;
+
+/**
+ * Se calcula con la hora del servidor en que llegó el último punto (received_at), no con la hora
+ * de captura: un reloj de teléfono atrasado no tiene que mostrar al dispositivo "sin señal".
+ */
+export function positionStateFor(
+  lastPointReceivedAt: Date | null,
+  permission: string | null,
+  now: Date = new Date(),
+  noSignalAfterS: number = NO_SIGNAL_AFTER_S,
+): PositionState {
+  if (permission === 'denied') return 'no_permission';
+  if (!lastPointReceivedAt) return 'no_data';
+  return (now.getTime() - lastPointReceivedAt.getTime()) / 1000 > noSignalAfterS ? 'no_signal' : 'current';
+}
 
 export const TripStatus = z.enum(['planned', 'in_progress', 'completed', 'cancelled', 'interrupted']);
 export type TripStatus = z.infer<typeof TripStatus>;

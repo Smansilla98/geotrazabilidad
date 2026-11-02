@@ -13,12 +13,12 @@ Nada se marca como terminado sin una verificación registrada. El detalle por fu
 | 5. Integración | **Completa en local** | `simulate-device.mjs`: 12/12 verificaciones |
 | 6. Estabilización y Railway | **Preparado, no desplegado** | Builds en limpio con `NODE_ENV=production`; IaC compilado |
 
-## Pruebas ejecutadas (2026-10-27, todas en verde)
-- `packages/shared`: 46 unitarias (geo, reglas, comparación, estrategia de captura, cola y sync con `node:sqlite`).
-- `apps/api`: 42 de integración (Testcontainers `postgis/postgis:17-3.5`) + 4 unitarias de formatos.
+## Pruebas ejecutadas (2026-11-02, todas en verde)
+- `packages/shared`: 58 unitarias (geo, reglas, comparación, estrategia de captura, cola y sync con `node:sqlite`, ventana del viaje, estado de posición, modo flota).
+- `apps/api`: 52 de integración (Testcontainers `postgis/postgis:17-3.5`) + 4 unitarias de formatos.
 - `apps/web`: 4 unitarias (reproductor y capas) + 4 E2E en Chromium contra el servidor de producción y la API real.
 - `apps/mobile`: `tsc`, `expo export --platform android`, `expo prebuild --platform android`, 1 unitaria.
-- Simulación de punta a punta: 12/12.
+- Simulación de punta a punta: 14/14 (incluye el corte del viaje tras la llegada).
 - Verificaciones manuales:
   - OSRM demo en vivo;
   - BFF con CSRF y cookie;
@@ -33,6 +33,7 @@ Nada se marca como terminado sin una verificación registrada. El detalle por fu
 Ver STATUS.md § "Errores encontrados y corregidos" (7 errores, 2 de ellos de seguridad).
 
 ## Decisiones técnicas
+- 2026-11-02: corte del registro de un viaje (llegada + margen, cancelación o duración máxima de 24 h) informado a la app en la respuesta de la ingesta; estado de la posición con umbral de 30 min sobre la hora de recepción; modo de captura "flota" (2–3 min / envío cada 5 min). Migración 0004.
 - 2026-10-27: ADR en ARCHITECTURE.md. Revisados durante la implementación: sin Kysely (ADR 7), web en Vite + BFF (ADR 10), reglas en TS (ADR 8b).
 - 2026-10-27: Railway IaC (`.railway/railway.ts`) en lugar de `railway.json`, porque Config as Code deja de leerse el 2026-12-01.
 - 2026-10-27: TypeScript 6.0 (no 7.0) por compatibilidad de decoradores con NestJS 12 (ESM).

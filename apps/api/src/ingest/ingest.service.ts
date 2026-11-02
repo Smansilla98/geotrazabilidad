@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { IngestBatchRequest, IngestBatchResponse, IngestPoint, RejectCode } from '@geo/shared';
+import { trackingDirectiveFor, tripWindowEnd, type IngestBatchRequest, type IngestBatchResponse, type IngestPoint, type RejectCode, type TrackingDirective, type TripStatus, type TripWindowInput } from '@geo/shared';
 import { AppError } from '../common/http.js';
 import { Db } from '../db/db.js';
 import { DevicesService } from '../devices/devices.service.js';
@@ -94,6 +94,24 @@ export class IngestService {
         }
       }
 
+      // Viajes de las sesiones del lote (y de la sesión activa del cliente): ventana de registro e indicación.
+      const tripSessions = await c.query<{ session_id: string; trip_id: string; status: TripStatus; started_at: Date | null; actual_end_at: Date | null; max_duration_s: number; stop_grace_s: number }>(
+        `SELECT s.id AS session_id, t.id AS trip_id, t.status, t.actual_end_at, t.max_duration_s, t.stop_grace_s,
+                LEAST(t.actual_start_at, (SELECT min(started_at) FROM tracking_sessions WHERE trip_id = t.id)) AS started_at
+           FROM tracking_sessions s JOIN trips t ON t.id = s.trip_id
+          WHERE s.device_id = $1 AND s.id = ANY($2::uuid[])`,
+        [deviceId, [...new Set([...sessionStart.keys(), ...(req.client.activeSessionId ? [req.client.activeSessionId] : [])])]],
+      );
+      const tripOf = new Map<string, { tripId: string; window: TripWindowInput }>();
+      for (const r of tripSessions.rows) {
+        tripOf.set(r.session_id, {
+          tripId: r.trip_id,
+          window: { status: r.status, startedAt: r.started_at?.getTime() ?? null, endedAt: r.actual_end_at?.getTime() ?? null, maxDurationS: r.max_duration_s, stopGraceS: r.stop_grace_s },
+        });
+      }
+      const windowEnd = new Map([...tripOf].map(([sid, t]) => [sid, tripWindowEnd(t.window)]));
+      const tracking: TrackingDirective[] = [...tripOf].map(([sessionId, t]) => ({ sessionId, tripId: t.tripId, ...trackingDirectiveFor(t.window, receivedAt.getTime()) }));
+
       const rejected: Array<{ id: string; code: RejectCode }> = [];
       const valid: Array<IngestPoint & ReturnType<typeof normalizePoint> & { flags: string[] }> = [];
       const seenIds = new Set<string>();
@@ -115,6 +133,9 @@ export class IngestService {
           flags.push('future_ts');
         }
         if (t < start - BEFORE_SESSION_TOLERANCE_MS) { reject('BEFORE_SESSION_START'); continue; }
+        // Lo capturado después del corte del viaje (llegada + margen, cancelación o duración máxima) no se guarda.
+        const end = windowEnd.get(p.sessionId);
+        if (end != null && t > end) { reject('OUTSIDE_TRIP_WINDOW'); continue; }
         if (p.mocked) flags.push('mocked');
         valid.push({ ...p, ...normalizePoint(p), flags });
       }
@@ -186,7 +207,7 @@ export class IngestService {
           [deviceId, new Date(earliestChange)],
         );
       }
-      return { accepted, duplicates, rejected, orgId: device.org_id, lastCapturedAt: last.rows[0]?.captured_at ?? null };
+      return { accepted, duplicates, rejected, tracking, orgId: device.org_id, lastCapturedAt: last.rows[0]?.captured_at ?? null };
     });
 
     if (result.accepted.length) {
@@ -204,6 +225,7 @@ export class IngestService {
       duplicates: result.duplicates,
       rejected: result.rejected,
       config: { version: cfg.version, changed: req.client.configVersion !== undefined && req.client.configVersion !== cfg.version },
+      tracking: result.tracking,
     };
   }
 }

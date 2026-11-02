@@ -88,3 +88,15 @@ export const DEFAULT_RULE_PARAMS: RuleParams = {
 };
 
 export const DEFAULT_SESSION_TIMING: SessionTiming = { maxIntervalMovingS: 120, stationaryIntervalS: 900 };
+
+/**
+ * Umbrales ajustados al espaciado de la captura. Con puntos cada 2–3 min (modo flota) una detención
+ * de 3 min junta apenas un par de puntos: se exige 10 min dentro de 200 m (al menos tres puntos).
+ */
+export function ruleParamsForTiming(timing: SessionTiming, base: RuleParams = DEFAULT_RULE_PARAMS): RuleParams {
+  if (timing.maxIntervalMovingS <= 120) return base;
+  return {
+    ...base,
+    stop: { ...base.stop, radiusM: Math.max(base.stop.radiusM, 200), minDurationS: Math.max(base.stop.minDurationS, 600, 3 * timing.maxIntervalMovingS) },
+  };
+}

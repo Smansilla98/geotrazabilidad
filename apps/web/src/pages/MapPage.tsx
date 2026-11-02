@@ -5,7 +5,7 @@ import { Layer, Marker, Source, type MapLayerMouseEvent, type MapRef } from 'rea
 import type { DeviceSummary, EventType, GeofenceDto, TrackResponse, TrackingEventDto, TripDto } from '@geo/shared';
 import { EventType as EventTypeEnum } from '@geo/shared';
 import { api, download } from '../lib/api';
-import { CONFIDENCE_LABEL, CONNECTION_LABEL, EVENT_COLOR, EVENT_LABEL, fmtAgo, fmtDateTime, fmtDistance, fmtDuration, fmtSpeed, fromLocalInput, toLocalInput, TZ } from '../lib/format';
+import { CONFIDENCE_LABEL, CONNECTION_LABEL, EVENT_COLOR, POSITION_CLASS, POSITION_LABEL, EVENT_LABEL, fmtAgo, fmtDateTime, fmtDistance, fmtDuration, fmtSpeed, fromLocalInput, toLocalInput, TZ } from '../lib/format';
 import { bboxOf, flattenTrack, positionAt, type FlatPoint } from '../lib/geojson';
 import { MapBase } from '../components/MapBase';
 import { INTERACTIVE_LAYERS, MapLegend, TrackLayers, type LayerToggles } from '../components/TrackLayers';
@@ -157,7 +157,10 @@ export function MapPage() {
         </label>
         {device && (
           <div className="device-mini">
-            {device.isDemo && <DemoBadge />} <span className={`badge conn-${device.connectionState}`}>{CONNECTION_LABEL[device.connectionState].label}</span>
+            {device.isDemo && <DemoBadge />} <span className={`badge conn-${device.connectionState}`}>{CONNECTION_LABEL[device.connectionState].label}</span>{' '}
+            <span className={`badge conn-${POSITION_CLASS[device.positionState]}`} title={POSITION_LABEL[device.positionState].help}>
+              {POSITION_LABEL[device.positionState].label}
+            </span>
             <div className="muted small">Último contacto: {fmtAgo(device.lastContactAt)}</div>
             {device.lastPoint && <div className="muted small">Última posición recibida: {fmtDateTime(device.lastPoint.receivedAt)}</div>}
           </div>

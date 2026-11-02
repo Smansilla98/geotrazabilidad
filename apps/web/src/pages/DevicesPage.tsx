@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import type { DeviceSummary, SessionSummary } from '@geo/shared';
 import { Fragment, useState } from 'react';
 import { api } from '../lib/api';
-import { CONNECTION_LABEL, fmtAgo, fmtDateTime } from '../lib/format';
+import { CONNECTION_LABEL, END_REASON_LABEL, fmtAgo, fmtDateTime, MODE_LABEL, POSITION_CLASS, POSITION_LABEL } from '../lib/format';
 import { DemoBadge, ErrorBox } from '../App';
 
 export function DevicesPage() {
@@ -38,6 +38,14 @@ export function DevicesPage() {
           ))}
         </ul>
         <p>Un dispositivo nunca figura "en línea" por tener una posición histórica: el estado depende del último contacto real con el servidor.</p>
+        <p>Además del contacto, cada dispositivo muestra el estado de su posición:</p>
+        <ul>
+          {Object.entries(POSITION_LABEL).map(([k, v]) => (
+            <li key={k}>
+              <span className={`badge conn-${POSITION_CLASS[k as keyof typeof POSITION_CLASS]}`}>{v.label}</span> {v.help}.
+            </li>
+          ))}
+        </ul>
       </details>
       <ErrorBox error={devices.error ?? act.error} />
       <div className="table-wrap">
@@ -70,9 +78,14 @@ export function DevicesPage() {
                     {d.status === 'revoked' ? (
                       <span className="badge revoked">Revocado</span>
                     ) : (
-                      <span className={`badge conn-${d.connectionState}`} title={CONNECTION_LABEL[d.connectionState].help}>
-                        {CONNECTION_LABEL[d.connectionState].label}
-                      </span>
+                      <>
+                        <span className={`badge conn-${d.connectionState}`} title={CONNECTION_LABEL[d.connectionState].help}>
+                          {CONNECTION_LABEL[d.connectionState].label}
+                        </span>{' '}
+                        <span className={`badge conn-${POSITION_CLASS[d.positionState]}`} title={POSITION_LABEL[d.positionState].help}>
+                          {POSITION_LABEL[d.positionState].label}
+                        </span>
+                      </>
                     )}
                   </td>
                   <td title={fmtDateTime(d.lastContactAt)}>{fmtAgo(d.lastContactAt)}</td>
@@ -155,9 +168,9 @@ function Sessions({ deviceId }: { deviceId: string }) {
           <tr key={s.id}>
             <td>{fmtDateTime(s.startedAt)}</td>
             <td>{s.endedAt ? fmtDateTime(s.endedAt) : <span className="badge conn-online">En curso</span>}</td>
-            <td>{s.mode}</td>
+            <td>{MODE_LABEL[s.mode as keyof typeof MODE_LABEL] ?? s.mode}</td>
             <td>{s.pointCount}</td>
-            <td>{s.endReason ?? '—'}</td>
+            <td>{s.endReason ? (END_REASON_LABEL[s.endReason] ?? s.endReason) : '—'}</td>
             <td>
               {s.firstPointAt && (
                 <Link to={`/map?device=${deviceId}&from=${new Date(Date.parse(s.firstPointAt) - 60_000).toISOString()}&to=${new Date(Date.parse(s.lastPointAt!) + 60_000).toISOString()}`}>Ver recorrido</Link>

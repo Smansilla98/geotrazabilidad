@@ -85,8 +85,8 @@ export class OrgsController {
   @Get(':orgId/tracking-config')
   async getConfig(@Auth() p: Principal, @Param('orgId') orgId: string) {
     await this.access.requireRole(userIdOf(p), parse(Uuid, orgId), ['owner', 'admin', 'viewer']);
-    const r = await this.db.one<{ version: number; params: unknown }>('SELECT version, params FROM tracking_configs WHERE org_id = $1', [orgId]);
-    return r ? { version: r.version, modes: r.params } : { version: 0, modes: DEFAULT_TRACKING_CONFIG };
+    const r = await this.db.one<{ version: number; params: object }>('SELECT version, params FROM tracking_configs WHERE org_id = $1', [orgId]);
+    return r ? { version: r.version, modes: { ...DEFAULT_TRACKING_CONFIG, ...r.params } } : { version: 0, modes: DEFAULT_TRACKING_CONFIG };
   }
 
   @Put(':orgId/tracking-config')

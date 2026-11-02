@@ -102,4 +102,22 @@ export const DEFAULT_TRACKING_CONFIG: Record<TrackingMode, TrackingConfigParams>
     syncIntervalS: 30,
     lowBatteryThreshold: 0.2,
   },
+  // Un punto cada 2–3 min y envío cada 5 min. iOS ignora el intervalo de tiempo: ahí el espaciado
+  // sale de la distancia (unos 2 km entre puntos a velocidad de ruta) más el latido por tiempo.
+  fleet: {
+    accuracy: 'balanced',
+    nativeDistanceM: 100,
+    nativeIntervalMs: 150_000,
+    minDistanceM: 2000,
+    maxIntervalMovingS: 180,
+    stationaryIntervalS: 900,
+    headingChangeDeg: 90,
+    maxAccuracyM: 100,
+    stationarySpeedMps: 0.8,
+    stationaryRadiusM: 200,
+    stationaryAfterS: 600,
+    deferredUpdatesIntervalMs: 150_000,
+    syncIntervalS: 300,
+    lowBatteryThreshold: 0,
+  },
 };

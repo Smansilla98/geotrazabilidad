@@ -56,7 +56,8 @@
   "batchId": "0192d0c4-…",
   "sentAt": "2026-10-27T13:05:00.000Z",
   "client": { "appVersion": "1.0.0", "pendingCount": 1240, "batteryLevel": 0.62,
-              "permission": "always", "configVersion": 3 },
+              "permission": "always", "configVersion": 3,
+              "activeSessionId": "0192d0c0-…" },
   "sessions": [
     { "id": "0192d0c0-…", "startedAt": "2026-10-27T12:00:00.000Z", "endedAt": null,
       "mode": "trip", "tripId": null, "configSnapshot": { "…": "…" } }
@@ -80,7 +81,10 @@ Respuesta `200` (también en reenvíos):
   "accepted":   ["0192d0c1-…"],
   "duplicates": [],
   "rejected":   [{ "id": "…", "code": "LAT_OUT_OF_RANGE" }],
-  "config": { "version": 3, "changed": false }
+  "config": { "version": 3, "changed": false },
+  "tracking": [
+    { "sessionId": "0192d0c0-…", "tripId": "0192cf00-…", "state": "active", "reason": null }
+  ]
 }
 ```
 
@@ -89,6 +93,32 @@ Reglas:
 - `accepted` y `duplicates` se dan por confirmados en el cliente y se marcan `acked`. `rejected` es un rechazo **permanente** de validación: no se reintenta y se guarda localmente para diagnóstico. Un error 5xx o de red reintenta el lote completo.
 - Validaciones por punto: rangos de lat/lon, `capturedAt` no más de 5 min en el futuro respecto del servidor (corregido por el desfase estimado; si no, se acepta con la marca `future_ts`), `capturedAt` no anterior al inicio de la sesión menos 1 min, y la sesión debe pertenecer al dispositivo.
 - La ingesta **no** calcula eventos. Solo marca `reprocess_from` y responde rápido.
+
+### Ventana y corte del registro de un viaje
+
+Cada viaje tiene una **ventana de registro**. Termina en el primero de estos momentos:
+- la llegada (evento `trip_completed`, o estado `completed` puesto por un usuario) más `stopGraceS` (por defecto 10 min);
+- la cancelación (sin margen);
+- el inicio observado (primer punto o apertura de la primera sesión) más `maxDurationS` (por defecto 24 h). Es el respaldo cuando no se detecta la llegada.
+
+Reglas:
+- Los puntos de una sesión de viaje capturados **después** del fin de la ventana se rechazan con `OUTSIDE_TRIP_WINDOW`. Los atrasados de antes del corte se aceptan.
+- `tracking` trae una indicación por cada sesión de viaje del lote y por `client.activeSessionId` (solo si es del mismo dispositivo): `active`, o `stop` con `reason` = `trip_completed` | `trip_cancelled` | `trip_max_duration`. La app deja de capturar y cierra la sesión con ese motivo.
+- La llegada la detecta el worker de forma asíncrona: la indicación de detenerse llega en un lote posterior. El margen cubre esa demora.
+- `GET /v1/trips/{id}` devuelve `maxDurationS`, `stopGraceS` y `windowEndsAt` (null mientras el viaje no empezó). Los dos primeros se fijan al crear el viaje y se pueden cambiar con `PATCH`.
+
+### Estado de la posición y permiso
+
+`DeviceSummary` incluye `permission` (último permiso informado por lote o latido: `always`, `when_in_use`, `denied`, `unknown`) y `positionState`:
+
+| Valor | Significado |
+|---|---|
+| `current` | Llegó una posición en los últimos 30 min |
+| `no_signal` | La última posición recibida es más vieja que 30 min. Se mide con la hora de **recepción** del servidor, no con la de captura: un reloj de teléfono atrasado no marca "sin señal" |
+| `no_permission` | El último envío informó el permiso `denied` |
+| `no_data` | Nunca llegó una posición (los dispositivos demo siempre figuran así) |
+
+Es independiente de `connectionState`, que mide el último contacto de cualquier tipo con umbrales más cortos.
 
 ## Recorrido reconstruido
 

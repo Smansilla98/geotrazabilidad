@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { connectionStateFor, DEFAULT_TRACKING_CONFIG, type DeviceSummary, type TrackingConfigResponse } from '@geo/shared';
+import { connectionStateFor, DEFAULT_TRACKING_CONFIG, LocationPermission, positionStateFor, type DeviceSummary, type TrackingConfigResponse } from '@geo/shared';
 import { AccessService } from '../access/access.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -22,6 +22,7 @@ interface DeviceRow {
   client_pending_count: number | null;
   client_reported_at: Date | null;
   last_error: string | null;
+  permission: string | null;
   lp_lat: number | null;
   lp_lon: number | null;
   lp_captured_at: Date | null;
@@ -37,7 +38,7 @@ export const DEVICE_SUMMARY_SQL = `
   SELECT d.id, d.org_id, d.name, d.platform, d.status, d.is_demo,
          u.id AS holder_id, u.display_name AS holder_name,
          COALESCE(s.app_version, d.app_version) AS app_version,
-         s.last_contact_at, s.client_pending_count, s.client_reported_at, s.last_error,
+         s.last_contact_at, s.client_pending_count, s.client_reported_at, s.last_error, s.permission,
          lp.lat AS lp_lat, lp.lon AS lp_lon, lp.captured_at AS lp_captured_at, lp.received_at AS lp_received_at, lp.accuracy_m AS lp_accuracy,
          (c.id IS NOT NULL) AS consent_active, c.share_with_org AS consent_share, c.consent_version,
          (d.holder_user_id = $1 OR m.role IN ('owner','admin')) AS can_manage
@@ -81,6 +82,9 @@ export class DevicesService {
           : null,
       sync: { clientPendingCount: r.client_pending_count, clientReportedAt: r.client_reported_at?.toISOString() ?? null, lastError: r.last_error },
       consent: { active: r.consent_active, shareWithOrg: !!r.consent_share, version: r.consent_version },
+      permission: LocationPermission.safeParse(r.permission).data ?? null,
+      // Los demo nunca se muestran con posición actual: no hay un dispositivo real detrás.
+      positionState: r.is_demo ? 'no_data' : positionStateFor(r.lp_received_at, r.permission, now),
       canManage: r.can_manage,
     };
   }
@@ -214,7 +218,8 @@ export class DevicesService {
       'SELECT t.version, t.params FROM tracking_configs t JOIN devices d ON d.org_id = t.org_id WHERE d.id = $1',
       [deviceId],
     );
-    return r ? { version: r.version, modes: r.params } : { version: 0, modes: DEFAULT_TRACKING_CONFIG };
+    // Los modos agregados después de guardar la configuración toman sus valores por defecto.
+    return r ? { version: r.version, modes: { ...DEFAULT_TRACKING_CONFIG, ...r.params } } : { version: 0, modes: DEFAULT_TRACKING_CONFIG };
   }
 
   async heartbeat(

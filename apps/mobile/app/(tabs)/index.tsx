@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { Camera, GeoJSONSource, Layer, Map, UserLocation } from '@maplibre/maplibre-react-native';
 import { useLocalSearchParams } from 'expo-router';
-import type { GeofenceDto, TrackingMode, TripDto } from '@geo/shared';
+import type { GeofenceDto, TrackingMode, TrackingStopReason, TripDto } from '@geo/shared';
 import { userApi } from '../../src/api';
 import { MAP_STYLE_URL } from '../../src/config';
 import { recentSessionPoints, requestPermissions, startTracking, stopTracking, syncNow } from '../../src/tracking';
@@ -13,7 +13,14 @@ const MODES: { key: TrackingMode; label: string; help: string }[] = [
   { key: 'normal', label: 'Normal', help: 'Equilibrio entre detalle y batería.' },
   { key: 'trip', label: 'Viaje', help: 'Más detalle mientras te desplazás.' },
   { key: 'intensive', label: 'Intensivo', help: 'Máximo detalle; alto consumo.' },
+  { key: 'fleet', label: 'Flota', help: 'Un punto cada 2–3 min y envío cada 5 min; para viajes largos en vehículo.' },
 ];
+
+const SERVER_STOP: Record<TrackingStopReason, string> = {
+  trip_completed: 'Llegaste a destino: el registro del viaje terminó.',
+  trip_cancelled: 'El viaje fue cancelado: el registro se detuvo.',
+  trip_max_duration: 'Se alcanzó la duración máxima del viaje: el registro se detuvo.',
+};
 
 function circle(center: { lon: number; lat: number }, r: number): [number, number][] {
   return Array.from({ length: 49 }, (_, i) => {
@@ -111,6 +118,7 @@ export default function TrackingScreen() {
       <ScrollView contentContainerStyle={{ padding: 14, gap: 10 }} style={{ backgroundColor: C.bg }}>
         <StatusBanners />
         {t && <Banner kind="info" text={`Viaje: ${t.name}`} />}
+        {!st.active && st.stoppedByServer && <Banner kind="info" text={SERVER_STOP[st.stoppedByServer]} />}
         {st.active ? (
           <Card title="Seguimiento activo">
             <Row label="Modo" value={MODES.find((m) => m.key === st.mode)?.label ?? st.mode} />

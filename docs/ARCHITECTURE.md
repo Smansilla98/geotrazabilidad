@@ -159,7 +159,7 @@ geoprueba/
 | Vínculo de dispositivo | Genera `install_id` (UUID guardado en SecureStore), registra el dispositivo y recibe el token de dispositivo | Al reinstalar se genera un dispositivo nuevo. El anterior se puede revocar desde la web. |
 | Consentimiento | Pantalla de privacidad con versión de texto, aceptación explícita y opción de compartir con la organización | Sin consentimiento vigente la ingesta responde `403 CONSENT_REQUIRED`. |
 | Permisos | Primero en uso, después "siempre" con explicación previa (Android 11+ abre Ajustes) | La app funciona en modo degradado con solo permiso en uso. |
-| Captura | Tarea `TaskManager` + estrategia de `shared/capture` | Modos: ahorro, normal, viaje, intensivo. Los parámetros vienen del servidor y hay valores locales seguros. |
+| Captura | Tarea `TaskManager` + estrategia de `shared/capture` | Modos: ahorro, normal, viaje, intensivo y flota (un punto cada 2–3 min, envío cada 5 min, con umbrales de detención ajustados: 10 min dentro de 200 m). Los parámetros vienen del servidor y hay valores locales seguros. La app se detiene sola cuando el servidor indica el corte del viaje. |
 | Cola | SQLite: `points`, `sessions`, `outbox_meta` | Estados: `pending → sending → acked | rejected`. Los `acked` se purgan después de N días. |
 | Sincronización | Lotes de hasta 500 puntos, backoff 2^n con jitter (tope 15 min), dispara al reconectar o al pasar a primer plano | Reporta `pendingCount` en cada lote/heartbeat. |
 | UI | 14 pantallas del spec, con el mapa como eje | Indicador permanente de estado: grabando, sin permisos, esperando conexión o pausado. |

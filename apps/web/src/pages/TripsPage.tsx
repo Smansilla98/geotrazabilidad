@@ -72,6 +72,8 @@ function TripForm({ onDone }: { onDone: () => void }) {
   const [start, setStart] = useState('');
   const [arrival, setArrival] = useState('');
   const [radius, setRadius] = useState(100);
+  const [maxHours, setMaxHours] = useState(24);
+  const [graceMin, setGraceMin] = useState(10);
   const [notes, setNotes] = useState('');
   const create = useMutation({
     mutationFn: () =>
@@ -83,6 +85,8 @@ function TripForm({ onDone }: { onDone: () => void }) {
           origin,
           destination: dest,
           arrivalRadiusM: radius,
+          maxDurationS: Math.round(maxHours * 3600),
+          stopGraceS: Math.round(graceMin * 60),
           plannedStartAt: start ? fromLocalInput(start) : null,
           plannedArrivalAt: arrival ? fromLocalInput(arrival) : null,
           notes: notes || null,
@@ -138,6 +142,14 @@ function TripForm({ onDone }: { onDone: () => void }) {
         <label>
           Radio de llegada (m)
           <input type="number" min={10} max={5000} value={radius} onChange={(e) => setRadius(Number(e.target.value))} />
+        </label>
+        <label title="Respaldo por si no se detecta la llegada: pasado este tiempo desde el inicio, el teléfono deja de registrar el viaje.">
+          Duración máxima del registro (h)
+          <input type="number" min={0.25} max={168} step={0.25} value={maxHours} onChange={(e) => setMaxHours(Number(e.target.value))} />
+        </label>
+        <label title="Después de llegar al destino, el registro sigue este tiempo y luego se detiene.">
+          Margen después de la llegada (min)
+          <input type="number" min={0} max={240} value={graceMin} onChange={(e) => setGraceMin(Number(e.target.value))} />
         </label>
         <label>
           Observaciones

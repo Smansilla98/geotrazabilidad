@@ -3,6 +3,7 @@ import {
   DEFAULT_RULE_PARAMS,
   DEFAULT_TRACKING_CONFIG,
   evaluateSession,
+  ruleParamsForTiming,
   TrackingConfigParams,
   type DerivedEvent,
   type GeofenceDef,
@@ -207,14 +208,15 @@ export class Processor implements OnModuleInit, OnModuleDestroy {
     for (const s of sessions) {
       const points = (await this.db.query<PointRow>(`SELECT ${POINT_COLUMNS} FROM location_points WHERE session_id = $1 ORDER BY captured_at, seq`, [s.id])).map(toObserved);
       const trip = s.trip_id ? await this.loadTrip(s.trip_id) : null;
+      const timing = timingFor(s.mode, s.config_snapshot);
       const derived = evaluateSession({
         sessionId: s.id,
         points,
         sessionEnded: s.ended_at !== null,
-        timing: timingFor(s.mode, s.config_snapshot),
+        timing,
         geofences,
         trip,
-        params: DEFAULT_RULE_PARAMS,
+        params: ruleParamsForTiming(timing, DEFAULT_RULE_PARAMS),
       });
       changed += await this.reconcile(deviceId, s.id, dev.is_demo, derived);
       if (trip) await this.updateTripStatus(trip.id, s.ended_at !== null, points);

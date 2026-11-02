@@ -238,6 +238,20 @@ describe('cola persistente y sincronización', () => {
     expect((await engine.syncOnce()).kind).toBe('idle');
   });
 
+  it('entrega al cliente la indicación de detener el viaje que manda el servidor', async () => {
+    const { store } = await setup();
+    const sessionId = randomUUID();
+    await store.startSession({ id: sessionId, startedAt: Date.UTC(2026, 9, 27), mode: 'fleet', tripId: randomUUID(), configSnapshot: {} });
+    await fill(store, sessionId, 3);
+    const server = new FakeServer();
+    const tripId = randomUUID();
+    const send = server.sendBatch.bind(server);
+    server.sendBatch = async (req) => ({ ...(await send(req)), tracking: [{ sessionId, tripId, state: 'stop', reason: 'trip_completed' }] });
+    const got: unknown[] = [];
+    await new SyncEngine(store, server, { uuid: randomUUID, onTracking: (d) => void got.push(...d) }).drain();
+    expect(got).toEqual([{ sessionId, tripId, state: 'stop', reason: 'trip_completed' }]);
+  });
+
   it('backoff exponencial con jitter y tope', () => {
     expect(backoffDelay(0, 2000, 900_000, () => 0)).toBe(1000);
     expect(backoffDelay(3, 2000, 900_000, () => 1)).toBe(16_000);
